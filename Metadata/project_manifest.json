@@ -1,0 +1,48 @@
+{
+    "project": "AI-Powered Audit Risk Assessment Assistant",
+    "created_at": "2026-10-03T13:45:58.296542",
+    "directories": {
+        "models": "/content/drive/MyDrive/BPR602/Models",
+        "results": "/content/drive/MyDrive/BPR602/Results",
+        "saved_data": "/content/drive/MyDrive/BPR602/Saved_Data",
+        "metadata": "/content/drive/MyDrive/BPR602/Metadata"
+    },
+    "core_models": [
+        "final_xgb_model.joblib",
+        "preprocessor.joblib",
+        "isolation_forest.joblib",
+        "anomaly_scaler.joblib",
+        "anomaly_score_scaler.joblib"
+    ],
+    "core_datasets": [
+        "df_clean.parquet",
+        "df_features.parquet",
+        "X_train.parquet",
+        "X_test.parquet",
+        "y_train.pkl",
+        "y_test.pkl"
+    ],
+    "core_risk_outputs": [
+        "risk_results.parquet",
+        "risk_results.csv",
+        "risk_summary.csv",
+        "rule_summary.csv",
+        "combined_risk_score.npy",
+        "test_risk_score.npy"
+    ],
+    "core_anomaly_outputs": [
+        "train_anomaly_score.npy",
+        "test_anomaly_score.npy",
+        "test_anomaly_score_normalized.npy",
+        "train_anomaly_label.npy",
+        "test_anomaly_label.npy"
+    ],
+    "metadata": [
+        "feature_definitions.json",
+        "dataset_information.json",
+        "preprocessing_information.json",
+        "class_weight_information.json",
+        "environment_information.json",
+        "project_configuration.json"
+    ]
+}

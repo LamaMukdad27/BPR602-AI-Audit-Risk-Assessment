@@ -1,0 +1,14 @@
+{
+    "original_rows": 667584,
+    "original_columns": 48,
+    "cleaned_rows": 667584,
+    "cleaned_columns": 36,
+    "engineered_rows": 667584,
+    "engineered_columns": 60,
+    "train_rows": 534790,
+    "test_rows": 132794,
+    "train_fraud_rate": 0.06135866414854429,
+    "test_fraud_rate": 0.06618521921171137,
+    "anomaly_feature_count": 23,
+    "processed_feature_count": 2372
+}

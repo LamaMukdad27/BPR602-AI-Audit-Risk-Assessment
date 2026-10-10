@@ -1,0 +1,22 @@
+{
+    "project_name": "AI-Powered Audit Risk Assessment Assistant",
+    "dataset": "VynFi Journal Entries 1M",
+    "target_variable": "is_fraud",
+    "primary_model": "XGBoost",
+    "anomaly_model": "Isolation Forest",
+    "risk_engine": "Combined ML and anomaly-based audit risk scoring",
+    "fraud_probability_weight": 0.7,
+    "anomaly_score_weight": 0.3,
+    "risk_categories": [
+        "Low",
+        "Moderate",
+        "High",
+        "Critical"
+    ],
+    "random_state": 42,
+    "project_root": "/content/drive/MyDrive/BPR602",
+    "models_directory": "/content/drive/MyDrive/BPR602/Models",
+    "results_directory": "/content/drive/MyDrive/BPR602/Results",
+    "saved_data_directory": "/content/drive/MyDrive/BPR602/Saved_Data",
+    "metadata_directory": "/content/drive/MyDrive/BPR602/Metadata"
+}

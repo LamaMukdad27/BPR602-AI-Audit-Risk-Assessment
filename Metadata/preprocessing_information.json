@@ -1,0 +1,11 @@
+{
+    "numerical_imputation": "median",
+    "numerical_scaling": "StandardScaler",
+    "categorical_imputation": "most_frequent",
+    "categorical_encoding": "OneHotEncoder",
+    "handle_unknown": "ignore",
+    "fit_scope": "training data only",
+    "numeric_feature_count": 41,
+    "categorical_feature_count": 18,
+    "processed_feature_count": 2372
+}
