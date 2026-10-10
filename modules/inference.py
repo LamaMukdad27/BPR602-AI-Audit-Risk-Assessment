@@ -7,6 +7,17 @@ import numpy as np
 import pandas as pd
 
 
+# Validated project risk methodology.
+FRAUD_WEIGHT = 0.70
+ANOMALY_WEIGHT = 0.30
+
+RISK_THRESHOLDS = {
+    "moderate": 0.30,
+    "high": 0.60,
+    "critical": 0.80,
+}
+
+
 def run_inference(
     model_features: pd.DataFrame,
     preprocessor: Any,
@@ -14,77 +25,89 @@ def run_inference(
     isolation_forest: Any,
     anomaly_scaler: Any,
     anomaly_score_scaler: Any,
-    anomaly_features: list[str],
-    fraud_weight: float = 0.70,
-    anomaly_weight: float = 0.30,
-    risk_thresholds: dict[str, float] | None = None,
+    feature_definitions: dict,
 ) -> pd.DataFrame:
     """
     Run fraud detection, anomaly detection, and combined risk scoring.
 
-    Parameters
-    ----------
-    model_features:
-        Engineered GL features. Must contain the columns expected by
-        the saved preprocessor and Isolation Forest.
-    preprocessor:
-        Fitted training-time preprocessing pipeline.
-    fraud_model:
-        Fitted XGBoost fraud classifier.
-    isolation_forest:
-        Fitted Isolation Forest model.
-    anomaly_scaler:
-        Fitted scaler for Isolation Forest input features.
-    anomaly_score_scaler:
-        Fitted scaler used to normalize anomaly scores.
-    anomaly_features:
-        Exact ordered list of Isolation Forest input features.
-    fraud_weight, anomaly_weight:
-        Weights used in the combined risk score.
-    risk_thresholds:
-        Optional category thresholds. Defaults to the validated
-        project thresholds.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Input features plus fraud probability, anomaly score,
-        combined risk score, and risk category.
+    Input must contain the engineered features required by the
+    saved models, not the original unprocessed GL file.
     """
 
     if model_features.empty:
-        raise ValueError("The input contains no GL records.")
-
-    if not np.isclose(fraud_weight + anomaly_weight, 1.0):
-        raise ValueError("Risk weights must sum to 1.0.")
+        raise ValueError("The uploaded GL contains no records.")
 
     if not model_features.columns.is_unique:
         raise ValueError("Duplicate feature column names were found.")
 
-    required_anomaly_features = list(anomaly_features)
-    missing_anomaly = [
-        col for col in required_anomaly_features
+    numeric_features = feature_definitions["numeric_features"]
+    categorical_features = feature_definitions["categorical_features"]
+    anomaly_features = feature_definitions["anomaly_features"]
+
+    model_columns = numeric_features + categorical_features
+
+    missing_model_features = [
+        col for col in model_columns
         if col not in model_features.columns
     ]
 
-    if missing_anomaly:
+    missing_anomaly_features = [
+        col for col in anomaly_features
+        if col not in model_features.columns
+    ]
+
+    if missing_model_features:
         raise ValueError(
-            "Missing Isolation Forest features: "
-            + ", ".join(missing_anomaly)
+            "Missing required model features: "
+            + ", ".join(missing_model_features)
         )
 
-    # Use the saved preprocessor and classifier.
-    processed_features = preprocessor.transform(model_features)
+    if missing_anomaly_features:
+        raise ValueError(
+            "Missing required anomaly features: "
+            + ", ".join(missing_anomaly_features)
+        )
+
+    # Preserve all input columns, but select model features in
+    # the exact order documented by the saved feature definitions.
+    results = model_features.copy()
+    X_model = results[model_columns].copy()
+
+    # Convert numerical model inputs to numeric values.
+    for column in numeric_features:
+        X_model[column] = pd.to_numeric(
+            X_model[column], errors="coerce"
+        )
+
+    # Match the saved preprocessing pipeline and XGBoost model.
+    processed_features = preprocessor.transform(X_model)
+
     fraud_probability = fraud_model.predict_proba(
         processed_features
     )[:, 1]
 
-    # Reproduce the training-time anomaly scoring sequence.
-    anomaly_input = model_features[required_anomaly_features]
-    anomaly_scaled = anomaly_scaler.transform(anomaly_input)
+    # Isolation Forest uses its own ordered feature set and scaler.
+    X_anomaly = results[anomaly_features].copy()
 
-    # Isolation Forest assigns lower decision_function scores
-    # to more anomalous observations.
+    for column in anomaly_features:
+        X_anomaly[column] = pd.to_numeric(
+            X_anomaly[column], errors="coerce"
+        )
+
+    if X_anomaly.isna().any().any():
+        missing_counts = X_anomaly.isna().sum()
+        affected = missing_counts[missing_counts > 0].to_dict()
+
+        raise ValueError(
+            "Missing or non-numeric values remain in Isolation "
+            f"Forest inputs: {affected}. Complete feature "
+            "preparation before running inference."
+        )
+
+    anomaly_scaled = anomaly_scaler.transform(X_anomaly)
+
+    # Lower Isolation Forest decision scores indicate more unusual
+    # observations, so negate the scores before normalization.
     raw_anomaly_score = -isolation_forest.decision_function(
         anomaly_scaled
     )
@@ -97,42 +120,24 @@ def run_inference(
         normalized_anomaly_score, 0.0, 1.0
     )
 
+    # Apply the project's validated 70% / 30% risk methodology.
     combined_risk_score = np.clip(
-        fraud_weight * fraud_probability
-        + anomaly_weight * normalized_anomaly_score,
+        FRAUD_WEIGHT * fraud_probability
+        + ANOMALY_WEIGHT * normalized_anomaly_score,
         0.0,
         1.0,
     )
 
-    thresholds = risk_thresholds or {
-        "moderate": 0.30,
-        "high": 0.60,
-        "critical": 0.80,
-    }
-
-    moderate_threshold = thresholds["moderate"]
-    high_threshold = thresholds["high"]
-    critical_threshold = thresholds["critical"]
-
-    if not (
-        0 <= moderate_threshold
-        <= high_threshold
-        <= critical_threshold
-        <= 1
-    ):
-        raise ValueError("Risk thresholds must be ordered between 0 and 1.")
-
     risk_category = np.select(
         [
-            combined_risk_score < moderate_threshold,
-            combined_risk_score < high_threshold,
-            combined_risk_score < critical_threshold,
+            combined_risk_score < RISK_THRESHOLDS["moderate"],
+            combined_risk_score < RISK_THRESHOLDS["high"],
+            combined_risk_score < RISK_THRESHOLDS["critical"],
         ],
         ["Low", "Moderate", "High"],
         default="Critical",
     )
 
-    results = model_features.copy()
     results["fraud_probability"] = fraud_probability
     results["anomaly_score"] = normalized_anomaly_score
     results["combined_risk_score"] = combined_risk_score
